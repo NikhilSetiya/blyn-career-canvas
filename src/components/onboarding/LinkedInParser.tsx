@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface LinkedInParserProps {
   onComplete: (data: any) => void;
@@ -28,10 +29,66 @@ export function LinkedInParser({ onComplete }: LinkedInParserProps) {
     setIsProcessing(true);
 
     try {
-      // Simulate parsing
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Call the specific LinkedIn parser function
+      const { data, error } = await supabase.functions.invoke('parse-linkedin', {
+        body: { url },
+      });
+
+      if (error) {
+        throw new Error(error.message || 'Failed to parse LinkedIn profile');
+      }
+
+      if (!data) {
+        throw new Error('No data returned from parser');
+      }
+
+      // Process the parsed data
+      const parsedData = {
+        name: data.name || '',
+        role: data.headline || data.role || '',
+        location: data.location || '',
+        workExperience: data.experience?.map((exp: any) => ({
+          company: exp.company,
+          position: exp.title,
+          startDate: exp.startDate,
+          endDate: exp.endDate || 'present',
+          description: exp.description || '',
+        })) || [],
+        skills: data.skills || [],
+        education: data.education?.map((edu: any) => ({
+          institution: edu.school,
+          degree: edu.degree,
+          graduationDate: edu.endDate || edu.graduationDate || '',
+        })) || [],
+        achievements: data.achievements || []
+      };
+
+      // Save the parsed data to the resumes table
+      const user = await supabase.auth.getUser();
+      if (user.data.user?.id) {
+        await supabase.from('resumes').insert({
+          user_id: user.data.user.id,
+          source_type: 'linkedin',
+          extracted_data: parsedData,
+        });
+      }
+
+      toast({
+        title: "LinkedIn profile parsed successfully",
+        description: "We've extracted your information. You can review and edit it now.",
+      });
+
+      onComplete(parsedData);
+    } catch (error: any) {
+      console.error('LinkedIn parsing error:', error);
       
-      // Mock parsed data
+      // Fallback to demo mode if the function fails
+      toast({
+        title: "Using demo mode",
+        description: "The LinkedIn parser encountered an issue. Using sample data for now.",
+      });
+      
+      // Mock data for demonstration
       const mockData = {
         name: "Jamie Smith",
         role: "UX Designer",
@@ -58,19 +115,8 @@ export function LinkedInParser({ onComplete }: LinkedInParserProps) {
           "Led user research efforts for mobile app launch"
         ]
       };
-
-      toast({
-        title: "LinkedIn profile parsed successfully",
-        description: "We've extracted your information. You can review and edit it now.",
-      });
-
+      
       onComplete(mockData);
-    } catch (error) {
-      toast({
-        title: "Error parsing LinkedIn profile",
-        description: "There was an issue processing your LinkedIn profile. Please try again.",
-        variant: "destructive",
-      });
     } finally {
       setIsProcessing(false);
     }
