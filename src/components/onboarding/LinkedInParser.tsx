@@ -29,18 +29,30 @@ export function LinkedInParser({ onComplete }: LinkedInParserProps) {
     setIsProcessing(true);
 
     try {
-      // Call the specific LinkedIn parser function
-      const { data, error } = await supabase.functions.invoke('parse-linkedin', {
-        body: { url },
+      console.log("Calling parse-resume-or-linkedin with URL:", url);
+      
+      // Get the current session for authentication
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // Call the combined parser function with LinkedIn type and proper authentication
+      const { data, error } = await supabase.functions.invoke('parse-resume-or-linkedin', {
+        body: { url, type: 'linkedin' },
+        headers: session?.access_token ? {
+          Authorization: `Bearer ${session.access_token}`
+        } : undefined
       });
 
       if (error) {
+        console.error("Supabase function error:", error);
         throw new Error(error.message || 'Failed to parse LinkedIn profile');
       }
 
       if (!data) {
+        console.error("No data returned from parser");
         throw new Error('No data returned from parser');
       }
+      
+      console.log("Parser returned data:", data);
 
       // Process the parsed data
       const parsedData = {
