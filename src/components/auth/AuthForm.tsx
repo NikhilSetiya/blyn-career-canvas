@@ -1,223 +1,116 @@
-
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/lib/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
-import { Github, Mail } from 'lucide-react';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { CardTitle } from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { useToast } from "@/hooks/use-toast";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
 
 interface AuthFormProps {
-  onSuccess?: () => void;
+  onSuccess: () => void;
 }
 
+const formSchema = z.object({
+  email: z.string().email({ message: "Please enter a valid email address." }),
+  password: z.string().min(8, { message: "Password must be at least 8 characters." }),
+});
+
 export function AuthForm({ onSuccess }: AuthFormProps) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const { toast } = useToast();
+  const [isLogin, setIsLogin] = useState(true);
   const { signIn } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
 
-  const handleEmailSignIn = async (event: React.FormEvent, isLogin: boolean) => {
-    event.preventDefault();
-    setIsLoading(true);
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  });
 
-    try {
-      const { error } = isLogin
-        ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({ 
-            email, 
-            password,
-            options: {
-              emailRedirectTo: `${window.location.origin}/dashboard`
-            }
-          });
-
-      if (error) throw error;
-      
-      toast({
-        title: isLogin ? "Logged in successfully" : "Account created",
-        description: isLogin 
-          ? "Welcome back to Blyn!" 
-          : "Please check your email for confirmation.",
-      });
-      
-      if (onSuccess && isLogin) {
-        onSuccess();
-      }
-    } catch (error: any) {
-      toast({
-        title: "Authentication failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleOAuthSignIn = async (provider: 'google' | 'github') => {
-    try {
-      await signIn(provider);
-      if (onSuccess) {
-        onSuccess();
-      }
-    } catch (error: any) {
-      toast({
-        title: "Authentication failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    // Here, you would typically handle the form submission logic,
+    // such as sending the data to your authentication service.
+    console.log(values);
+    
+    // For demonstration purposes, let's just show a success message.
+    toast({
+      title: "Success!",
+      description: "Form submitted successfully.",
+    });
+    
+    onSuccess();
   };
 
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <Tabs defaultValue="login">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="login">Login</TabsTrigger>
-          <TabsTrigger value="register">Register</TabsTrigger>
-        </TabsList>
-        <TabsContent value="login">
-          <form onSubmit={(e) => handleEmailSignIn(e, true)}>
-            <CardHeader>
-              <CardTitle>Login</CardTitle>
-              <CardDescription>
-                Enter your credentials to access your Blyn account.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="login-email">Email</Label>
-                <Input 
-                  id="login-email" 
-                  type="email" 
-                  placeholder="you@example.com" 
-                  value={email} 
-                  onChange={(e) => setEmail(e.target.value)} 
-                  required 
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="login-password">Password</Label>
-                <Input 
-                  id="login-password" 
-                  type="password" 
-                  value={password} 
-                  onChange={(e) => setPassword(e.target.value)} 
-                  required 
-                />
-              </div>
-              <div className="space-y-2">
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Logging in..." : "Login with Email"}
-                </Button>
-                
-                <div className="relative my-4">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-gray-300" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-white dark:bg-card px-2 text-muted-foreground">
-                      Or continue with
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleOAuthSignIn('github')}
-                    disabled={isLoading}
-                  >
-                    <Github className="mr-2 h-4 w-4" /> GitHub
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleOAuthSignIn('google')}
-                    disabled={isLoading}
-                  >
-                    <Mail className="mr-2 h-4 w-4" /> Google
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </form>
-        </TabsContent>
-        <TabsContent value="register">
-          <form onSubmit={(e) => handleEmailSignIn(e, false)}>
-            <CardHeader>
-              <CardTitle>Register</CardTitle>
-              <CardDescription>
-                Create a new Blyn account to get started.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="register-email">Email</Label>
-                <Input 
-                  id="register-email" 
-                  type="email" 
-                  placeholder="you@example.com" 
-                  value={email} 
-                  onChange={(e) => setEmail(e.target.value)} 
-                  required 
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="register-password">Password</Label>
-                <Input 
-                  id="register-password" 
-                  type="password" 
-                  value={password} 
-                  onChange={(e) => setPassword(e.target.value)} 
-                  required 
-                />
-              </div>
-              <div className="space-y-2">
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Creating account..." : "Register with Email"}
-                </Button>
-                
-                <div className="relative my-4">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-gray-300" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-white dark:bg-card px-2 text-muted-foreground">
-                      Or continue with
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleOAuthSignIn('github')}
-                    disabled={isLoading}
-                  >
-                    <Github className="mr-2 h-4 w-4" /> GitHub
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleOAuthSignIn('google')}
-                    disabled={isLoading}
-                  >
-                    <Mail className="mr-2 h-4 w-4" /> Google
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </form>
-        </TabsContent>
-      </Tabs>
-    </Card>
+    <div className="grid gap-6">
+      <CardTitle className="text-2xl font-bold text-center">
+        {isLogin ? "Login" : "Register"}
+      </CardTitle>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input placeholder="mail@example.com" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Password</FormLabel>
+                <FormControl>
+                  <Input type="password" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <Button type="submit" className="w-full">
+            {isLogin ? "Login" : "Register"}
+          </Button>
+        </form>
+      </Form>
+      <div className="flex items-center justify-center">
+        <Button variant="link" onClick={() => setIsLogin(!isLogin)}>
+          {isLogin ? "Create an account" : "Already have an account?"}
+        </Button>
+      </div>
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-background px-2 text-muted-foreground">
+            Or continue with
+          </span>
+        </div>
+      </div>
+      <Button variant="outline" className="w-full" onClick={() => signIn('google')}>
+        Google
+      </Button>
+    </div>
   );
 }
