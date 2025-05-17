@@ -1,9 +1,9 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { CardTitle } from "@/components/ui/card";
 import {
   Form,
@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AuthFormProps {
   onSuccess: () => void;
@@ -32,6 +33,7 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
   const { signIn } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -42,17 +44,52 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    // Here, you would typically handle the form submission logic,
-    // such as sending the data to your authentication service.
-    console.log(values);
+    setIsLoading(true);
     
-    // For demonstration purposes, let's just show a success message.
-    toast({
-      title: "Success!",
-      description: "Form submitted successfully.",
-    });
-    
-    onSuccess();
+    try {
+      if (isLogin) {
+        // Sign in
+        const { error } = await supabase.auth.signInWithPassword({
+          email: values.email,
+          password: values.password,
+        });
+        
+        if (error) {
+          throw error;
+        }
+        
+        toast({
+          title: "Welcome back!",
+          description: "You've been successfully logged in.",
+        });
+        
+      } else {
+        // Sign up
+        const { error } = await supabase.auth.signUp({
+          email: values.email,
+          password: values.password,
+        });
+        
+        if (error) {
+          throw error;
+        }
+        
+        toast({
+          title: "Account created!",
+          description: "Check your email to confirm your account.",
+        });
+      }
+      
+      onSuccess();
+    } catch (error: any) {
+      toast({
+        title: "Authentication failed",
+        description: error.message || "An error occurred during authentication.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -88,8 +125,8 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
               </FormItem>
             )}
           />
-          <Button type="submit" className="w-full">
-            {isLogin ? "Login" : "Register"}
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? "Processing..." : isLogin ? "Login" : "Register"}
           </Button>
         </form>
       </Form>

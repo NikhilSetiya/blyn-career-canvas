@@ -67,10 +67,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, []);
 
+  // Since we don't have any tables yet, this function will just return the user data
+  // without trying to fetch from a non-existent table
   const refreshUserProfile = async () => {
     if (!user) return;
 
     try {
+      // Since the users table doesn't exist yet, we'll just use the user object from auth
+      setUserProfile({
+        id: user.id,
+        email: user.email
+      });
+      
+      /* This code will be uncommented when the users table is created
       const { data, error } = await supabase
         .from('users')
         .select('*')
@@ -83,6 +92,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       setUserProfile(data);
+      */
     } catch (error) {
       console.error('Error in refreshUserProfile:', error);
     }
