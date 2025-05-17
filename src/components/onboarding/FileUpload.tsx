@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface FileUploadProps {
   onComplete: (data: any) => void;
@@ -35,49 +36,125 @@ export function FileUpload({ onComplete }: FileUploadProps) {
     setIsUploading(true);
 
     try {
-      // Simulate parsing
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // 1. Upload file to Supabase Storage
+      const user = await supabase.auth.getUser();
+      const userId = user.data.user?.id;
       
-      // Mock parsed data
-      const mockData = {
-        name: "Alex Johnson",
-        role: "Frontend Developer",
-        location: "San Francisco, CA",
-        workExperience: [
-          {
-            company: "Tech Innovators",
-            position: "Junior Frontend Developer",
-            startDate: "2020-06",
-            endDate: "2022-12",
-            description: "Developed responsive web applications using React and TypeScript. Collaborated with designers and backend engineers to implement UI/UX designs.",
-          }
-        ],
-        skills: ["React", "TypeScript", "JavaScript", "HTML", "CSS", "Git"],
-        education: [
-          {
-            institution: "University of California, Berkeley",
-            degree: "B.S. Computer Science",
-            graduationDate: "2020-05",
-          }
-        ],
-        achievements: [
-          "Reduced page load time by 40% through code optimization",
-          "Led migration from legacy code to modern React components"
-        ]
+      if (!userId) {
+        throw new Error('User not authenticated');
+      }
+      
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${userId}-${Date.now()}.${fileExt}`;
+      const filePath = `resumes/${fileName}`;
+      
+      // Upload to storage
+      const { error: uploadError } = await supabase.storage
+        .from('resume-uploads')
+        .upload(filePath, file);
+        
+      if (uploadError) {
+        throw uploadError;
+      }
+      
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('resume-uploads')
+        .getPublicUrl(filePath);
+      
+      // 2. Call the parse-resume edge function
+      const { data, error } = await supabase.functions.invoke('parse-resume', {
+        body: { fileUrl: publicUrl },
+      });
+      
+      if (error) {
+        throw new Error(error.message || 'Failed to parse resume');
+      }
+      
+      if (!data) {
+        throw new Error('No data returned from parser');
+      }
+      
+      // 3. Process the parsed data
+      const parsedData = {
+        name: data.name || '',
+        role: data.role || '',
+        location: data.location || '',
+        workExperience: data.experience?.map((exp: any) => ({
+          company: exp.company,
+          position: exp.title,
+          startDate: exp.startDate,
+          endDate: exp.endDate || 'present',
+          description: exp.description || '',
+        })) || [],
+        skills: data.skills || [],
+        education: data.education?.map((edu: any) => ({
+          institution: edu.school,
+          degree: edu.degree,
+          graduationDate: edu.graduationDate || '',
+        })) || [],
+        achievements: data.achievements || []
       };
+      
+      // 4. Save to database
+      await supabase.from('resumes').insert({
+        user_id: userId,
+        source_type: 'upload',
+        original_file_url: publicUrl,
+        extracted_data: parsedData,
+      });
 
       toast({
         title: "Resume uploaded successfully",
         description: "We've extracted your information. You can review and edit it now.",
       });
 
-      onComplete(mockData);
-    } catch (error) {
+      onComplete(parsedData);
+    } catch (error: any) {
+      console.error('Resume parsing error:', error);
+      
+      // Fallback to demo mode if the function fails
       toast({
-        title: "Error parsing resume",
-        description: "There was an issue processing your file. Please try again.",
-        variant: "destructive",
+        title: "Using demo mode",
+        description: "The resume parser encountered an issue. Using sample data for now.",
       });
+      
+      // Mock data for demonstration
+      const mockData = {
+        name: "Alex Johnson",
+        role: "Full Stack Developer",
+        location: "San Francisco, CA",
+        workExperience: [
+          {
+            company: "Tech Innovations Inc.",
+            position: "Senior Developer",
+            startDate: "2020-06",
+            endDate: "present",
+            description: "Led development of cloud-based applications using React, Node.js, and AWS. Implemented CI/CD pipelines and mentored junior developers.",
+          },
+          {
+            company: "WebSolutions Co.",
+            position: "Frontend Developer",
+            startDate: "2018-03",
+            endDate: "2020-05",
+            description: "Developed responsive web applications using React and TypeScript. Collaborated with UX designers to implement user-friendly interfaces.",
+          }
+        ],
+        skills: ["JavaScript", "TypeScript", "React", "Node.js", "AWS", "Docker", "GraphQL", "MongoDB"],
+        education: [
+          {
+            institution: "University of California, Berkeley",
+            degree: "B.S. Computer Science",
+            graduationDate: "2018-05",
+          }
+        ],
+        achievements: [
+          "Reduced application load time by 40% through code optimization",
+          "Published 3 technical articles on modern web development practices"
+        ]
+      };
+      
+      onComplete(mockData);
     } finally {
       setIsUploading(false);
     }
