@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 interface Template {
@@ -26,30 +25,61 @@ export function PortfolioTemplates({ onSelect }: PortfolioTemplatesProps) {
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchTemplates();
+    // For now, use hardcoded templates until the database table is available
+    const hardcodedTemplates: Template[] = [
+      {
+        id: '1',
+        name: 'Modern Developer',
+        category: 'developer',
+        description: 'A clean, modern template for software developers',
+        preview_image: 'modern_dev.jpg',
+        template_data: {
+          layout: 'sidebar',
+          color_scheme: 'blue',
+          sections: ['intro', 'skills', 'projects', 'experience', 'education', 'contact']
+        }
+      },
+      {
+        id: '2',
+        name: 'Creative Designer',
+        category: 'designer',
+        description: 'Showcase your design portfolio with this visual template',
+        preview_image: 'creative_design.jpg',
+        template_data: {
+          layout: 'grid',
+          color_scheme: 'purple',
+          sections: ['intro', 'showcase', 'skills', 'experience', 'testimonials', 'contact']
+        }
+      },
+      {
+        id: '3',
+        name: 'Product Manager',
+        category: 'business',
+        description: 'Highlight your product management experience and skills',
+        preview_image: 'product_mgr.jpg',
+        template_data: {
+          layout: 'full',
+          color_scheme: 'green',
+          sections: ['intro', 'approach', 'case_studies', 'skills', 'experience', 'education']
+        }
+      },
+      {
+        id: '4',
+        name: 'Startup Founder',
+        category: 'founder',
+        description: 'Perfect for entrepreneurs and founders',
+        preview_image: 'founder.jpg',
+        template_data: {
+          layout: 'cards',
+          color_scheme: 'orange',
+          sections: ['intro', 'ventures', 'achievements', 'skills', 'philosophy', 'contact']
+        }
+      }
+    ];
+
+    setTemplates(hardcodedTemplates);
+    setLoading(false);
   }, []);
-
-  const fetchTemplates = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('portfolio_templates')
-        .select('*')
-        .order('category', { ascending: true });
-
-      if (error) throw error;
-
-      setTemplates(data || []);
-    } catch (error: any) {
-      console.error('Error fetching templates:', error);
-      toast({
-        title: "Error loading templates",
-        description: "Failed to load portfolio templates.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSelectTemplate = (template: Template) => {
     setSelectedTemplate(template.id);

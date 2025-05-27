@@ -97,12 +97,12 @@ export function FileUpload({ onComplete }: FileUploadProps) {
         achievements: data.achievements || []
       };
       
-      // Save to database
-      await supabase.from('parsed_data').insert({
+      // Save to resumes table using existing structure
+      await supabase.from('resumes').insert({
         user_id: userId,
-        source_type: 'resume',
-        raw_data: data,
-        processed_data: parsedData,
+        source_type: 'upload',
+        original_file_url: publicUrl,
+        extracted_data: parsedData,
       });
 
       toast({
