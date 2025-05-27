@@ -136,7 +136,7 @@ Resume content: ${extractedText || 'Please analyze the resume file at: ' + fileU
         messages: [
           {
             role: 'system',
-            content: 'You are a resume parsing assistant. Extract information from resumes and return valid JSON only.'
+            content: 'You are a resume parsing assistant. Extract information from resumes and return valid JSON only. Do not wrap the JSON in markdown code blocks or any other formatting.'
           },
           {
             role: 'user',
@@ -159,19 +159,32 @@ Resume content: ${extractedText || 'Please analyze the resume file at: ' + fileU
 
     console.log('OpenAI response:', parsedContent)
 
-    // Try to parse the JSON response
+    // Try to parse the JSON response, handling markdown code blocks
     let parsedData
     try {
-      parsedData = JSON.parse(parsedContent)
+      // Clean the response by removing markdown code blocks if they exist
+      let cleanedContent = parsedContent.trim()
+      
+      // Remove markdown code block markers
+      if (cleanedContent.startsWith('```json')) {
+        cleanedContent = cleanedContent.replace(/^```json\s*/, '').replace(/\s*```$/, '')
+      } else if (cleanedContent.startsWith('```')) {
+        cleanedContent = cleanedContent.replace(/^```\s*/, '').replace(/\s*```$/, '')
+      }
+      
+      parsedData = JSON.parse(cleanedContent)
+      console.log('Successfully parsed resume data:', parsedData)
     } catch (parseError) {
       console.error('Failed to parse OpenAI JSON response:', parseError)
-      // Return mock data as fallback
+      console.error('Raw response was:', parsedContent)
+      
+      // Return a more descriptive fallback
       parsedData = {
-        name: "Resume Parsed",
-        role: "Professional",
-        location: "Location Not Found",
-        email: "email@example.com",
-        phone: "Phone Not Found",
+        name: "Unable to parse name",
+        role: "Unable to parse role",
+        location: "Unable to parse location",
+        email: "Unable to parse email",
+        phone: "Unable to parse phone",
         experience: [],
         education: [],
         skills: [],
