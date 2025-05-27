@@ -1,7 +1,6 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -36,22 +35,22 @@ export function FileUpload({ onComplete }: FileUploadProps) {
     setIsUploading(true);
 
     try {
-      // 1. Upload file to Supabase Storage
-      const user = await supabase.auth.getUser();
-      const userId = user.data.user?.id;
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id;
       
       if (!userId) {
         throw new Error('User not authenticated');
       }
       
+      // Create file path with user ID folder
       const fileExt = file.name.split('.').pop();
-      const fileName = `${userId}-${Date.now()}.${fileExt}`;
-      const filePath = `resumes/${fileName}`;
+      const fileName = `${userId}/${Date.now()}.${fileExt}`;
       
-      // Upload to storage
+      // Upload to the resumes storage bucket
       const { error: uploadError } = await supabase.storage
-        .from('resume-uploads')
-        .upload(filePath, file);
+        .from('resumes')
+        .upload(fileName, file);
         
       if (uploadError) {
         throw uploadError;
@@ -59,10 +58,10 @@ export function FileUpload({ onComplete }: FileUploadProps) {
       
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
-        .from('resume-uploads')
-        .getPublicUrl(filePath);
+        .from('resumes')
+        .getPublicUrl(fileName);
       
-      // 2. Call the parse-resume edge function
+      // Call the parse-resume edge function
       const { data, error } = await supabase.functions.invoke('parse-resume', {
         body: { fileUrl: publicUrl },
       });
@@ -75,11 +74,13 @@ export function FileUpload({ onComplete }: FileUploadProps) {
         throw new Error('No data returned from parser');
       }
       
-      // 3. Process the parsed data
+      // Process the parsed data into the expected format
       const parsedData = {
         name: data.name || '',
         role: data.role || '',
         location: data.location || '',
+        email: data.email || '',
+        phone: data.phone || '',
         workExperience: data.experience?.map((exp: any) => ({
           company: exp.company,
           position: exp.title,
@@ -96,65 +97,28 @@ export function FileUpload({ onComplete }: FileUploadProps) {
         achievements: data.achievements || []
       };
       
-      // 4. Save to database
-      await supabase.from('resumes').insert({
+      // Save to database
+      await supabase.from('parsed_data').insert({
         user_id: userId,
-        source_type: 'upload',
-        original_file_url: publicUrl,
-        extracted_data: parsedData,
+        source_type: 'resume',
+        raw_data: data,
+        processed_data: parsedData,
       });
 
       toast({
         title: "Resume uploaded successfully",
-        description: "We've extracted your information. You can review and edit it now.",
+        description: "Your resume has been parsed. Review the extracted information.",
       });
 
       onComplete(parsedData);
     } catch (error: any) {
       console.error('Resume parsing error:', error);
       
-      // Fallback to demo mode if the function fails
       toast({
-        title: "Using demo mode",
-        description: "The resume parser encountered an issue. Using sample data for now.",
+        title: "Upload failed",
+        description: error.message || "Failed to parse resume. Please try again.",
+        variant: "destructive",
       });
-      
-      // Mock data for demonstration
-      const mockData = {
-        name: "Alex Johnson",
-        role: "Full Stack Developer",
-        location: "San Francisco, CA",
-        workExperience: [
-          {
-            company: "Tech Innovations Inc.",
-            position: "Senior Developer",
-            startDate: "2020-06",
-            endDate: "present",
-            description: "Led development of cloud-based applications using React, Node.js, and AWS. Implemented CI/CD pipelines and mentored junior developers.",
-          },
-          {
-            company: "WebSolutions Co.",
-            position: "Frontend Developer",
-            startDate: "2018-03",
-            endDate: "2020-05",
-            description: "Developed responsive web applications using React and TypeScript. Collaborated with UX designers to implement user-friendly interfaces.",
-          }
-        ],
-        skills: ["JavaScript", "TypeScript", "React", "Node.js", "AWS", "Docker", "GraphQL", "MongoDB"],
-        education: [
-          {
-            institution: "University of California, Berkeley",
-            degree: "B.S. Computer Science",
-            graduationDate: "2018-05",
-          }
-        ],
-        achievements: [
-          "Reduced application load time by 40% through code optimization",
-          "Published 3 technical articles on modern web development practices"
-        ]
-      };
-      
-      onComplete(mockData);
     } finally {
       setIsUploading(false);
     }
