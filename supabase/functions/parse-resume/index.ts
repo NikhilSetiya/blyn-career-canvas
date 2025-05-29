@@ -80,22 +80,12 @@ serve(async (req) => {
     
     console.log('Downloaded file:', fileName, 'Size:', fileBuffer.byteLength)
 
-    // For PDF files, we'll extract text using a simple approach
-    // For production, you'd want to use a proper PDF parsing library
-    let extractedText = ''
+    // Convert file to base64 for OpenAI Vision API
+    const base64File = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)))
     
-    if (fileName.toLowerCase().endsWith('.pdf')) {
-      // For now, we'll use OpenAI with the file URL directly
-      // In production, you'd extract text from the PDF first
-      extractedText = 'PDF content extraction not implemented - using OpenAI vision'
-    } else if (fileName.toLowerCase().endsWith('.docx')) {
-      // For DOCX, you'd typically use a library to extract text
-      extractedText = 'DOCX content extraction not implemented'
-    }
-
-    // Use OpenAI to parse the resume
+    // Use OpenAI Vision API to parse the resume
     const prompt = `
-Please analyze this resume and extract the following information in JSON format:
+Please analyze this resume document and extract the following information in JSON format:
 {
   "name": "Full name",
   "role": "Current or desired job title",
@@ -122,7 +112,7 @@ Please analyze this resume and extract the following information in JSON format:
   "achievements": ["achievement1", "achievement2"]
 }
 
-Resume content: ${extractedText || 'Please analyze the resume file at: ' + fileUrl}
+Extract all the information you can see in this resume document. If any field is not available, use appropriate default values.
 `
 
     const openAiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -132,7 +122,7 @@ Resume content: ${extractedText || 'Please analyze the resume file at: ' + fileU
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o',
         messages: [
           {
             role: 'system',
@@ -140,7 +130,18 @@ Resume content: ${extractedText || 'Please analyze the resume file at: ' + fileU
           },
           {
             role: 'user',
-            content: prompt
+            content: [
+              {
+                type: 'text',
+                text: prompt
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:application/pdf;base64,${base64File}`
+                }
+              }
+            ]
           }
         ],
         temperature: 0.1,
