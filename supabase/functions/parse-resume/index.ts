@@ -80,8 +80,16 @@ serve(async (req) => {
     
     console.log('Downloaded file:', fileName, 'Size:', fileBuffer.byteLength)
 
-    // Convert file to base64 for OpenAI Vision API
-    const base64File = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)))
+    // Convert file to base64 using a more efficient method
+    const uint8Array = new Uint8Array(fileBuffer)
+    let base64String = ''
+    
+    // Process in chunks to avoid stack overflow
+    const chunkSize = 8192
+    for (let i = 0; i < uint8Array.length; i += chunkSize) {
+      const chunk = uint8Array.slice(i, i + chunkSize)
+      base64String += btoa(String.fromCharCode.apply(null, Array.from(chunk)))
+    }
     
     // Use OpenAI Vision API to parse the resume
     const prompt = `
@@ -138,7 +146,7 @@ Extract all the information you can see in this resume document. If any field is
               {
                 type: 'image_url',
                 image_url: {
-                  url: `data:application/pdf;base64,${base64File}`
+                  url: `data:application/pdf;base64,${base64String}`
                 }
               }
             ]
