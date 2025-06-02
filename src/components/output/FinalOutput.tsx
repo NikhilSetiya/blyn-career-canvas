@@ -3,7 +3,12 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { PortfolioPreview } from "@/components/portfolio/PortfolioPreview";
+import { NetlifyDeployService } from "@/services/netlifyDeploy";
+import { ExternalLink } from "lucide-react";
 
 interface FinalOutputProps {
   userData: any;
@@ -14,6 +19,9 @@ interface FinalOutputProps {
 export function FinalOutput({ userData, outputOptions, onComplete }: FinalOutputProps) {
   const [activeTab, setActiveTab] = useState("resume");
   const [isExporting, setIsExporting] = useState(false);
+  const [isDeploying, setIsDeploying] = useState(false);
+  const [netlifyToken, setNetlifyToken] = useState("");
+  const [deployedUrl, setDeployedUrl] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleExport = async () => {
@@ -35,6 +43,39 @@ export function FinalOutput({ userData, outputOptions, onComplete }: FinalOutput
       });
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleDeploy = async () => {
+    if (!netlifyToken.trim()) {
+      toast({
+        title: "Netlify token required",
+        description: "Please enter your Netlify API token to deploy.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsDeploying(true);
+    
+    try {
+      const deployService = new NetlifyDeployService(netlifyToken);
+      const url = await deployService.deploy(userData, outputOptions.portfolioTemplate);
+      
+      setDeployedUrl(url);
+      toast({
+        title: "Portfolio deployed successfully!",
+        description: `Your portfolio is now live at ${url}`,
+      });
+    } catch (error) {
+      console.error('Deployment error:', error);
+      toast({
+        title: "Deployment failed",
+        description: "There was an issue deploying your portfolio. Please check your Netlify token and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeploying(false);
     }
   };
 
@@ -165,31 +206,54 @@ export function FinalOutput({ userData, outputOptions, onComplete }: FinalOutput
           </TabsContent>
           
           <TabsContent value="portfolio" className="space-y-4">
-            <div className="border rounded-md p-4">
-              <div className="bg-muted rounded-md h-64 flex items-center justify-center">
-                <div className="text-center">
-                  <p className="text-xl font-semibold">Portfolio Preview</p>
-                  <p className="text-muted-foreground">
-                    Your portfolio will be hosted at: <span className="font-mono">{userData.name.toLowerCase().replace(/\s+/g, '-')}.vercel.app</span>
+            <PortfolioPreview 
+              userData={userData} 
+              template={outputOptions.portfolioTemplate} 
+            />
+            
+            <div className="border rounded-md p-4 space-y-4">
+              <h3 className="font-medium">Deploy to Netlify</h3>
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="netlify-token">Netlify API Token</Label>
+                  <Input
+                    id="netlify-token"
+                    type="password"
+                    placeholder="Enter your Netlify API token"
+                    value={netlifyToken}
+                    onChange={(e) => setNetlifyToken(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Get your token from{" "}
+                    <a 
+                      href="https://app.netlify.com/user/applications#personal-access-tokens" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      Netlify Dashboard
+                    </a>
                   </p>
                 </div>
-              </div>
-              
-              <div className="mt-4 p-4 border rounded-md">
-                <h3 className="font-medium">Portfolio Details</h3>
-                <div className="grid grid-cols-2 gap-4 mt-2">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Template</p>
-                    <p className="font-medium capitalize">{outputOptions.portfolioTemplate}</p>
+                
+                {deployedUrl && (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-green-800">Portfolio Deployed!</p>
+                        <p className="text-sm text-green-600">{deployedUrl}</p>
+                      </div>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => window.open(deployedUrl, '_blank')}
+                      >
+                        <ExternalLink className="h-4 w-4 mr-1" />
+                        Visit
+                      </Button>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Status</p>
-                    <p className="font-medium">
-                      <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-1"></span>
-                      Ready to deploy
-                    </p>
-                  </div>
-                </div>
+                )}
               </div>
             </div>
           </TabsContent>
@@ -203,7 +267,9 @@ export function FinalOutput({ userData, outputOptions, onComplete }: FinalOutput
             {isExporting ? "Exporting..." : `Export ${activeTab === "portfolio" ? "HTML" : activeTab === "resume" ? "Resume" : "Cover Letter"}`}
           </Button>
           {activeTab === "portfolio" && (
-            <Button>Deploy to Vercel</Button>
+            <Button onClick={handleDeploy} disabled={isDeploying || !netlifyToken.trim()}>
+              {isDeploying ? "Deploying..." : "Deploy to Netlify"}
+            </Button>
           )}
         </div>
       </CardFooter>
