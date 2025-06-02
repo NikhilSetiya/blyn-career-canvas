@@ -18,8 +18,19 @@ serve(async (req) => {
     }
 
     const openAiApiKey = Deno.env.get('OPENAI_API_KEY')
+    const googleCloudApiKey = Deno.env.get('GOOGLE_CLOUD_API_KEY')
+    
     const fileBuffer = await downloadFile(fileUrl)
-    const extractedText = extractTextFromPdf(fileBuffer)
+    
+    let extractedText = ''
+    
+    if (googleCloudApiKey) {
+      console.log('Using Google Cloud Vision OCR for text extraction')
+      extractedText = await extractTextWithVision(fileBuffer, googleCloudApiKey)
+    } else {
+      console.log('Falling back to manual PDF text extraction')
+      extractedText = extractTextFromPdf(fileBuffer)
+    }
 
     console.log('Extracted text length:', extractedText.length)
     console.log('Extracted text preview:', extractedText.substring(0, 500))
@@ -53,6 +64,60 @@ async function downloadFile(fileUrl: string): Promise<ArrayBuffer> {
   const buffer = await res.arrayBuffer()
   console.log(`Downloaded ${fileName} (${buffer.byteLength} bytes)`)
   return buffer
+}
+
+async function extractTextWithVision(buffer: ArrayBuffer, apiKey: string): Promise<string> {
+  try {
+    // Convert ArrayBuffer to base64
+    const uint8Array = new Uint8Array(buffer)
+    const base64 = btoa(String.fromCharCode(...uint8Array))
+    
+    console.log('Sending file to Google Cloud Vision API...')
+    
+    const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        requests: [
+          {
+            image: {
+              content: base64
+            },
+            features: [
+              {
+                type: 'DOCUMENT_TEXT_DETECTION',
+                maxResults: 1
+              }
+            ]
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('Google Vision API error:', errorText)
+      throw new Error(`Google Vision API error: ${response.status}`)
+    }
+
+    const result = await response.json()
+    console.log('Google Vision API response received')
+    
+    if (result.responses && result.responses[0] && result.responses[0].fullTextAnnotation) {
+      const extractedText = result.responses[0].fullTextAnnotation.text
+      console.log('Successfully extracted text using Google Vision OCR')
+      return extractedText.trim()
+    } else {
+      console.log('No text detected by Google Vision OCR')
+      return ''
+    }
+  } catch (error) {
+    console.error('Google Vision OCR error:', error)
+    // Fall back to manual extraction if Vision API fails
+    return extractTextFromPdf(buffer)
+  }
 }
 
 function extractTextFromPdf(buffer: ArrayBuffer): string {
