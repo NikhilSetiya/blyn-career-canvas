@@ -5,13 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Card, 
-  CardContent, 
-  CardFooter,
-  CardHeader,
-  CardTitle
-} from "@/components/ui/card";
+import { Upload } from "lucide-react";
 
 interface GuidedFormProps {
   onComplete: (data: any) => void;
@@ -20,12 +14,16 @@ interface GuidedFormProps {
 export function GuidedForm({ onComplete }: GuidedFormProps) {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const { toast } = useToast();
   
   const [formData, setFormData] = useState({
     name: "",
     role: "",
     location: "",
+    email: "",
+    phone: "",
     skills: "",
     education: "",
     workExperience: "",
@@ -34,6 +32,26 @@ export function GuidedForm({ onComplete }: GuidedFormProps) {
 
   const updateForm = (key: keyof typeof formData, value: string) => {
     setFormData(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      if (file.type.startsWith('image/')) {
+        setProfilePhoto(file);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          setPhotoPreview(e.target?.result as string);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        toast({
+          title: "Invalid file type",
+          description: "Please upload an image file.",
+          variant: "destructive",
+        });
+      }
+    }
   };
 
   const nextStep = () => {
@@ -55,6 +73,9 @@ export function GuidedForm({ onComplete }: GuidedFormProps) {
         name: formData.name,
         role: formData.role,
         location: formData.location,
+        email: formData.email,
+        phone: formData.phone,
+        profilePhoto: photoPreview,
         skills: formData.skills.split(",").map(skill => skill.trim()),
         education: [
           {
@@ -123,6 +144,54 @@ export function GuidedForm({ onComplete }: GuidedFormProps) {
               placeholder="San Francisco, CA"
               required
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              value={formData.email}
+              onChange={(e) => updateForm("email", e.target.value)}
+              placeholder="john@example.com"
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="phone">Phone Number</Label>
+            <Input
+              id="phone"
+              value={formData.phone}
+              onChange={(e) => updateForm("phone", e.target.value)}
+              placeholder="+1 (555) 123-4567"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="photo">Profile Photo (Optional)</Label>
+            <div className="flex items-center gap-4">
+              <input
+                type="file"
+                id="photo"
+                className="hidden"
+                accept="image/*"
+                onChange={handlePhotoChange}
+              />
+              <label 
+                htmlFor="photo"
+                className="flex items-center gap-2 px-4 py-2 border rounded-md cursor-pointer hover:bg-muted"
+              >
+                <Upload className="h-4 w-4" />
+                Choose Photo
+              </label>
+              {photoPreview && (
+                <div className="w-16 h-16 rounded-full overflow-hidden border">
+                  <img 
+                    src={photoPreview} 
+                    alt="Profile preview" 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
+            </div>
           </div>
           <Button onClick={nextStep} className="w-full">Next: Skills & Education</Button>
         </div>
