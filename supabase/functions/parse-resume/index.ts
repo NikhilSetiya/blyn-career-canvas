@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -21,6 +20,9 @@ serve(async (req) => {
     const openAiApiKey = Deno.env.get('OPENAI_API_KEY')
     const fileBuffer = await downloadFile(fileUrl)
     const extractedText = extractTextFromPdf(fileBuffer)
+
+    console.log('Extracted text length:', extractedText.length)
+    console.log('Extracted text preview:', extractedText.substring(0, 500))
 
     const resumeText = extractedText.length >= 50
       ? extractedText
@@ -55,29 +57,68 @@ async function downloadFile(fileUrl: string): Promise<ArrayBuffer> {
 
 function extractTextFromPdf(buffer: ArrayBuffer): string {
   const uint8 = new Uint8Array(buffer)
-  const raw = new TextDecoder('utf-8').decode(uint8)
-
-  const parens = raw.match(/\(([^)]+)\)/g) || []
-  const extracted = parens
-    .map((s) => s.replace(/[()]/g, ''))
-    .filter((s) => s.length > 2 && /[a-zA-Z]/.test(s))
+  const raw = new TextDecoder('utf-8', { ignoreBOM: true, fatal: false }).decode(uint8)
+  
+  console.log('Raw PDF content preview:', raw.substring(0, 1000))
+  
+  let extractedText = ''
+  
+  // Method 1: Extract text from parentheses (most common in PDFs)
+  const parenthesesText = raw.match(/\(([^)]+)\)/g) || []
+  const cleanParentheses = parenthesesText
+    .map((s) => s.replace(/[()]/g, '').trim())
+    .filter((s) => s.length > 1 && /[a-zA-Z]/.test(s))
     .join(' ')
-
-  if (extracted.length >= 50) {
-    console.log('Text extracted (simple):', extracted.substring(0, 200))
-    return extracted
-  }
-
-  const streams = raw.match(/stream\s*(.*?)\s*endstream/gs) || []
-  const fallbackText = streams
-    .map((s) => s.replace(/stream|endstream/g, ''))
+  
+  // Method 2: Extract text from Tj and TJ operators
+  const tjMatches = raw.match(/\((.*?)\)\s*Tj/g) || []
+  const tjText = tjMatches
+    .map(match => match.replace(/\((.*?)\)\s*Tj/, '$1'))
+    .filter(text => text.length > 1 && /[a-zA-Z]/.test(text))
     .join(' ')
-    .replace(/[^\x20-\x7E]/g, ' ')
+  
+  // Method 3: Extract text from square brackets (array text)
+  const arrayMatches = raw.match(/\[(.*?)\]\s*TJ/g) || []
+  const arrayText = arrayMatches
+    .map(match => {
+      const content = match.replace(/\[(.*?)\]\s*TJ/, '$1')
+      return content.replace(/\(([^)]*)\)/g, '$1')
+    })
+    .filter(text => text.length > 1 && /[a-zA-Z]/.test(text))
+    .join(' ')
+  
+  // Method 4: Look for stream content
+  const streamMatches = raw.match(/stream\s*(.*?)\s*endstream/gs) || []
+  const streamText = streamMatches
+    .map(stream => {
+      const content = stream.replace(/stream|endstream/g, '')
+      // Extract text from common PDF text operators
+      const textContent = content.match(/\(([^)]+)\)/g) || []
+      return textContent
+        .map(t => t.replace(/[()]/g, ''))
+        .filter(t => t.length > 1 && /[a-zA-Z]/.test(t))
+        .join(' ')
+    })
+    .join(' ')
+  
+  // Combine all extraction methods
+  extractedText = [cleanParentheses, tjText, arrayText, streamText]
+    .filter(text => text.length > 0)
+    .join(' ')
     .replace(/\s+/g, ' ')
     .trim()
-
-  console.log('Text extracted (stream):', fallbackText.substring(0, 200))
-  return fallbackText || ''
+  
+  // Clean up common PDF artifacts
+  extractedText = extractedText
+    .replace(/\\[rnt]/g, ' ')  // Remove escape sequences
+    .replace(/[^\x20-\x7E\s]/g, ' ')  // Remove non-printable chars except spaces
+    .replace(/\s+/g, ' ')  // Normalize spaces
+    .trim()
+  
+  console.log('Final extracted text length:', extractedText.length)
+  console.log('Final extracted text preview:', extractedText.substring(0, 500))
+  
+  return extractedText
 }
 
 async function parseResumeWithOpenAI(apiKey: string, extractedText: string) {
