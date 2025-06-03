@@ -61,7 +61,7 @@ Be specific and actionable in your suggestions.
         messages: [
           {
             role: 'system',
-            content: 'You are an expert ATS analyzer and career coach. Always respond with valid JSON only.'
+            content: 'You are an expert ATS analyzer and career coach. Always respond with valid JSON only, no markdown formatting or code blocks.'
           },
           {
             role: 'user',
@@ -78,7 +78,13 @@ Be specific and actionable in your suggestions.
     }
 
     const data = await response.json();
-    const result = JSON.parse(data.choices[0].message.content);
+    let content = data.choices[0].message.content;
+
+    // Clean up any markdown formatting that might be present
+    content = content.replace(/```json\s*/g, '').replace(/```\s*$/g, '').trim();
+    
+    // Parse the cleaned content
+    const result = JSON.parse(content);
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

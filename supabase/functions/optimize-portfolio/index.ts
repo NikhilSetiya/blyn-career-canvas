@@ -30,25 +30,24 @@ Please provide a JSON response with the following structure:
 {
   "overallScore": number (0-100),
   "sectionScores": {
+    "summary": number (0-100),
     "projects": number (0-100),
     "skills": number (0-100),
-    "about": number (0-100),
-    "contact": number (0-100)
+    "experience": number (0-100)
   },
-  "missingKeywords": [array of important technologies/skills from job description not showcased in portfolio],
+  "missingKeywords": [array of important keywords from job description not found in portfolio],
   "suggestions": [array of specific actionable suggestions to improve the portfolio],
-  "optimizedContent": "rewritten portfolio descriptions optimized for this job description"
+  "optimizedContent": "rewritten portfolio content optimized for this job description"
 }
 
 Focus on:
-1. Technical skills alignment with job requirements
-2. Project relevance and complexity
-3. Technology stack matching
-4. Portfolio presentation and user experience
-5. Missing critical projects or skills demonstrations
-6. Professional branding and positioning
+1. Project relevance to job requirements
+2. Skills demonstration and alignment
+3. Technical depth and breadth
+4. Portfolio presentation and structure
+5. Missing critical projects or skills
 
-Be specific and actionable in your suggestions for portfolio improvements.
+Be specific and actionable in your suggestions.
 `;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -62,7 +61,7 @@ Be specific and actionable in your suggestions for portfolio improvements.
         messages: [
           {
             role: 'system',
-            content: 'You are an expert portfolio analyzer and career coach. Always respond with valid JSON only.'
+            content: 'You are an expert portfolio analyzer and career coach. Always respond with valid JSON only, no markdown formatting or code blocks.'
           },
           {
             role: 'user',
@@ -79,7 +78,13 @@ Be specific and actionable in your suggestions for portfolio improvements.
     }
 
     const data = await response.json();
-    const result = JSON.parse(data.choices[0].message.content);
+    let content = data.choices[0].message.content;
+
+    // Clean up any markdown formatting that might be present
+    content = content.replace(/```json\s*/g, '').replace(/```\s*$/g, '').trim();
+    
+    // Parse the cleaned content
+    const result = JSON.parse(content);
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
