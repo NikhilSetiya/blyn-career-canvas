@@ -3,18 +3,20 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, TrendingUp, Target, Lightbulb, Globe } from "lucide-react";
+import { Loader2, TrendingUp, Target, Lightbulb } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
-interface PortfolioOptimizationResult {
+interface OptimizationResult {
   overallScore: number;
   sectionScores: {
+    summary: number;
     projects: number;
     skills: number;
-    about: number;
-    contact: number;
+    experience: number;
   };
   missingKeywords: string[];
   suggestions: string[];
@@ -25,7 +27,7 @@ export function PortfolioOptimizer() {
   const [jobDescription, setJobDescription] = useState("");
   const [portfolioContent, setPortfolioContent] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [result, setResult] = useState<PortfolioOptimizationResult | null>(null);
+  const [result, setResult] = useState<OptimizationResult | null>(null);
   const [showOptimized, setShowOptimized] = useState(false);
   const { toast } = useToast();
 
@@ -41,22 +43,17 @@ export function PortfolioOptimizer() {
 
     setIsAnalyzing(true);
     try {
-      const response = await fetch("/api/optimize-portfolio", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('optimize-portfolio', {
+        body: {
           jobDescription,
           portfolioContent,
-        }),
+        },
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to analyze portfolio");
+      if (error) {
+        throw new Error(error.message || "Failed to analyze portfolio");
       }
 
-      const data = await response.json();
       setResult(data);
       
       toast({
@@ -103,11 +100,11 @@ export function PortfolioOptimizer() {
         <Card>
           <CardHeader>
             <CardTitle>Portfolio Content</CardTitle>
-            <CardDescription>Describe your current portfolio projects and content</CardDescription>
+            <CardDescription>Paste your current portfolio content or project descriptions</CardDescription>
           </CardHeader>
           <CardContent>
             <Textarea
-              placeholder="Describe your portfolio projects, skills showcased, and overall content..."
+              placeholder="Paste your portfolio content here..."
               value={portfolioContent}
               onChange={(e) => setPortfolioContent(e.target.value)}
               className="min-h-[300px]"
@@ -127,8 +124,8 @@ export function PortfolioOptimizer() {
             </>
           ) : (
             <>
-              <Globe className="mr-2 h-4 w-4" />
-              Analyze Portfolio
+              <Target className="mr-2 h-4 w-4" />
+              Analyze & Optimize
             </>
           )}
         </Button>
@@ -143,7 +140,7 @@ export function PortfolioOptimizer() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <TrendingUp className="h-5 w-5" />
-                  Portfolio Alignment Score
+                  Overall Portfolio Score
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -155,7 +152,7 @@ export function PortfolioOptimizer() {
                       </span>
                     </span>
                     <Badge variant={result.overallScore >= 80 ? "default" : result.overallScore >= 60 ? "secondary" : "destructive"}>
-                      {result.overallScore >= 80 ? "Excellent Match" : result.overallScore >= 60 ? "Good Match" : "Needs Improvement"}
+                      {result.overallScore >= 80 ? "Excellent" : result.overallScore >= 60 ? "Good" : "Needs Improvement"}
                     </Badge>
                   </div>
                   <Progress 
@@ -193,8 +190,8 @@ export function PortfolioOptimizer() {
             {/* Missing Keywords */}
             <Card>
               <CardHeader>
-                <CardTitle>Missing Skills/Technologies</CardTitle>
-                <CardDescription>Important technologies from the job description not highlighted in your portfolio</CardDescription>
+                <CardTitle>Missing Keywords</CardTitle>
+                <CardDescription>Important keywords from the job description not found in your portfolio</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-2">
@@ -212,7 +209,7 @@ export function PortfolioOptimizer() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Lightbulb className="h-5 w-5" />
-                  Portfolio Enhancement Suggestions
+                  AI Suggestions
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -230,8 +227,8 @@ export function PortfolioOptimizer() {
             {/* Optimized Content */}
             <Card>
               <CardHeader>
-                <CardTitle>Optimized Portfolio Description</CardTitle>
-                <CardDescription>AI-generated optimized descriptions for your portfolio sections</CardDescription>
+                <CardTitle>Optimized Content</CardTitle>
+                <CardDescription>AI-generated optimized version of your portfolio</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">

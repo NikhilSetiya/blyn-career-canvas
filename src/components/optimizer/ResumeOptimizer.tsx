@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, TrendingUp, Target, Lightbulb } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface OptimizationResult {
   overallScore: number;
@@ -42,22 +43,17 @@ export function ResumeOptimizer() {
 
     setIsAnalyzing(true);
     try {
-      const response = await fetch("/api/optimize-resume", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('optimize-resume', {
+        body: {
           jobDescription,
           resumeContent,
-        }),
+        },
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to analyze resume");
+      if (error) {
+        throw new Error(error.message || "Failed to analyze resume");
       }
 
-      const data = await response.json();
       setResult(data);
       
       toast({
