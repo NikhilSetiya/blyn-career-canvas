@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Templates from "./pages/Templates";
+import Optimizer from "./pages/Optimizer";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 
@@ -35,6 +36,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Templates />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/optimizer" 
+              element={
+                <ProtectedRoute>
+                  <Optimizer />
                 </ProtectedRoute>
               } 
             />
